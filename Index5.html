@@ -1,0 +1,1028 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NTU Library's Prompt Engineering for Guided Inquiry</title>
+
+    <!-- 1. Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- 2. Load React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+    <!-- 3. Load Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- Custom Fonts & Icons -->
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Merriweather:ital,wght@0,300;0,400;0,700;1,400&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        ntu: {
+                            blue: '#181c62',
+                            red: '#d71440',
+                            gold: '#c6a87c',
+                            teal: '#0f766e',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        serif: ['Merriweather', 'serif'],
+                    },
+                    boxShadow: {
+                        'glass': '0 8px 32px 0 rgba(31, 38, 135, 0.07)',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f1f5f9;
+        }
+
+        /* slate-100 */
+        .decoration-clone {
+            -webkit-box-decoration-break: clone;
+            box-decoration-break: clone;
+        }
+
+        .animation-fade-in {
+            animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Glassmorphism utilities */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+        }
+
+        .glass-header {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-bottom: 1px solid rgba(226, 232, 240, 0.6);
+        }
+    </style>
+</head>
+
+<body class="text-slate-800 antialiased selection:bg-blue-100 selection:text-blue-900">
+
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState } = React;
+
+        // --- MAIN COMPONENT ---
+        const ResearchNavigator = () => {
+            const [activeStage, setActiveStage] = useState(0);
+            const [isSticky, setIsSticky] = useState(true);
+            const [promptInputs, setPromptInputs] = useState({
+                role: "",
+                task: "",
+                context: "",
+                constraint: ""
+            });
+
+            const [expandedSection, setExpandedSection] = useState(null);
+
+            const stages = [
+                {
+                    id: 1,
+                    name: "Initiation",
+                    emotion: "Uncertainty / Apprehension",
+                    feelingKey: "Characterized by uncertainty and apprehension as the researcher becomes aware of a lack of knowledge.",
+                    goal: "Brainstorming; seeing the big picture.",
+                    promptMode: "Divergent Prompting",
+                    icon: "fa-lightbulb",
+                    color: "bg-amber-50 text-amber-700",
+                    borderColor: "border-amber-400",
+                    accentColor: "text-amber-600",
+                    advice: "Use AI to open up possibilities, not to narrow them down yet.",
+                    template: {
+                        role: "E.g. Act as an interdisciplinary research consultant.",
+                        task: "E.g. Identify 5 emerging tensions or under-explored intersections between [Field A] and [Field B].",
+                        context: "E.g. For a graduate-level exploratory seminar paper.",
+                        constraint: "E.g. Do not write the analysis. Instead, list key concepts and broader themes to help me understand the landscape."
+                    }
+                },
+                {
+                    id: 2,
+                    name: "Selection",
+                    emotion: "Optimism / Anxiety",
+                    feelingKey: "A brief sense of optimism after choosing a topic, often followed by anxiety or apprehension as the true extent of the work ahead becomes apparent.",
+                    goal: "Choosing a specific path.",
+                    promptMode: "Convergent Prompting",
+                    icon: "fa-compass",
+                    color: "bg-emerald-50 text-emerald-700",
+                    borderColor: "border-emerald-400",
+                    accentColor: "text-emerald-600",
+                    advice: "Don't ask AI to choose for you. Ask it to compare feasibility.",
+                    template: {
+                        role: "E.g. Act as a strict research project manager.",
+                        task: "E.g. Evaluate the feasibility of [Proposed Research Question] given a 12-week timeline and access to standard academic databases.",
+                        context: "E.g. For a final year undergraduate dissertation.",
+                        constraint: "E.g. Do not rewrite the question. Instead, list 3 potential bottlenecks in data collection or methodology."
+                    }
+                },
+                {
+                    id: 3,
+                    name: "Exploration (The Dip)",
+                    emotion: "Confusion / Frustration / Doubt",
+                    feelingKey: "Often the most difficult stage. Characterized by confusion and frustration when information seems inconsistent or incompatible with initial ideas.",
+                    goal: "Understanding concepts; finding focus.",
+                    promptMode: "Explanatory Prompting",
+                    icon: "fa-triangle-exclamation",
+                    color: "bg-rose-50 text-rose-700",
+                    borderColor: "border-rose-400",
+                    accentColor: "text-rose-600",
+                    advice: "DANGER ZONE. Do not ask AI to write the assignments to escape the stress. Use it to explain difficult concepts simply.",
+                    template: {
+                        role: "E.g. Act as a patient academic mentor specializing in [Theoretical Framework].",
+                        task: "E.g. Deconstruct [Complex Theory/Concept] into its foundational axioms. Explain how they interact to form the whole.",
+                        context: "E.g. I am struggling to apply this theory to my case study.",
+                        constraint: "E.g. Use a concrete analogy from a different field to illustrate the mechanism. Do not simplify the vocabulary, but explain it."
+                    }
+                },
+                {
+                    id: 4,
+                    name: "Formulation",
+                    emotion: "Clarity / Confidence",
+                    feelingKey: "The turning point where a clear focus is established, reducing uncertainty and building confidence to proceed.",
+                    goal: "Forming YOUR own perspective.",
+                    promptMode: "Socratic Prompting",
+                    icon: "fa-brain",
+                    color: "bg-sky-50 text-sky-700",
+                    borderColor: "border-sky-400",
+                    accentColor: "text-sky-600",
+                    advice: "NO AI ZONE for generating ideas. Only use AI to critique ideas you already have.",
+                    template: {
+                        role: "E.g. Act as a rigorous peer reviewer for a top-tier journal.",
+                        task: "E.g. Critique my working thesis: [Insert Thesis]. Identify logical fallacies or unsupported assumptions.",
+                        context: "E.g. Preparing for an academic defense.",
+                        constraint: "E.g. Do NOT offer an alternative thesis. Only ask 3 probing questions that force me to clarify my stance."
+                    }
+                },
+                {
+                    id: 5,
+                    name: "Collection",
+                    emotion: "Sense of Direction / Confidence",
+                    feelingKey: "A renewed sense of direction and increased interest as specific information is gathered to support and extend the defined focus.",
+                    goal: "Gathering authoritative sources.",
+                    promptMode: "Procedural Prompting",
+                    icon: "fa-magnifying-glass",
+                    color: "bg-violet-50 text-violet-700",
+                    borderColor: "border-violet-400",
+                    accentColor: "text-violet-600",
+                    advice: "TRIANGULATION REQUIRED. Use AI to build search strings, then use the Library Database.",
+                    template: {
+                        role: "E.g. Act as an expert reference librarian.",
+                        task: "E.g. Generate a comprehensive search strategy for [Specific Topic], including controlled vocabulary (MeSH/LCSH) and Boolean operators.",
+                        context: "E.g. For a systematic literature review.",
+                        constraint: "E.g. Provide the search strings only. Do not generate a list of fake citations."
+                    }
+                },
+                {
+                    id: 6,
+                    name: "Presentation",
+                    emotion: "Satisfaction / Relief",
+                    feelingKey: "Accompanied by relief and satisfaction if the search has been successful, or disappointment if not.",
+                    goal: "Communicating effectively.",
+                    promptMode: "Refinement Prompting",
+                    icon: "fa-check-circle",
+                    color: "bg-teal-50 text-teal-700",
+                    borderColor: "border-teal-400",
+                    accentColor: "text-teal-600",
+                    advice: "Use AI to check clarity, not to generate content.",
+                    template: {
+                        role: "E.g. Act as a professional academic copyeditor.",
+                        task: "E.g. Analyze the following text for 'hedging' language and passive voice usage.",
+                        context: "E.g. Final submission for a formal research report.",
+                        constraint: "E.g. Highlight the specific sentences that weaken the argument. Explain *why* they are weak, but let me rewrite them."
+                    }
+                }
+            ];
+
+            // --- CONSTRAINT DATA GENERATION ---
+            // 1. Define Constraint Objects BEFORE the function that uses them
+            const standardConstraints = {
+                title: "The 'Pedagogy' Layer",
+                desc: "Guardrails to prevent the AI from doing the thinking. Explicitly block synthesis.",
+                templates: [
+                    { label: "Synthesis Block", text: "Do not synthesize these [Articles/Data Points] for me. Summarize each one individually in bullet points, so I can find the connections myself." },
+                    { label: "Logic Check", text: "Do not rewrite my [Code/Paragraph/Argument]. Only analyze the logic flow and tell me where my reasoning breaks down." },
+                    { label: "Socratic Guardrail", text: "Do not give me the answer. Ask me a guiding question that helps me derive the answer myself. If I get it wrong, explain why my logic failed, but still don't give the final answer." },
+                    { label: "Idea Isolator", text: "Provide three distinct theoretical approaches I could take to solve this problem, but do not solve it. Let me choose the approach and apply it." }
+                ]
+            };
+
+            const collectionConstraints = {
+                title: "The 'Pedagogy' Layer (Verification)",
+                desc: "Guardrails to prevent hallucinations and ensure you use the library.",
+                templates: [
+                    { label: "No Fake Citations", text: "Do not generate a list of specific citations or bibliography entries, as they may be hallucinated. Only provide search strings and keyword combinations." },
+                    { label: "Methodology Focus", text: "Focus on *how* to search (e.g. Boolean operators, specific database filters), not *what* the search will find." },
+                    { label: "Database Reality Check", text: "Limit your suggestions to terms that are valid in standard academic databases (e.g., MeSH terms), avoiding natural language conversational phrases." },
+                    { label: "Source Type Only", text: "List the *types* of primary sources (e.g., government reports, ethnographies) I should look for, but do not invent specific document titles." }
+                ]
+            };
+
+            const presentationConstraints = {
+                title: "The 'Pedagogy' Layer (Voice)",
+                desc: "Guardrails to protect your academic voice and ensure integrity.",
+                templates: [
+                    { label: "No Rewrites", text: "Do not rewrite the text for me. Highlight the issues (e.g., passive voice) and explain the grammar rule so I can fix it myself." },
+                    { label: "Voice Preservation", text: "Maintain my original tone and voice. Only point out objective grammatical errors, do not change my style." },
+                    { label: "Explanation First", text: "For every suggestion, provide a rationale (e.g., 'This sentence is ambiguous because...') before suggesting a fix." },
+                    { label: "Formatting Only", text: "Correct the citation formatting (e.g., commas, italics) according to the style guide, but do not alter the author names or titles." }
+                ]
+            };
+
+            // 2. Define the Helper Function
+            const getRtccData = (stageId) => {
+                // Default RTCC structure for R, T, C
+                let roleData = {};
+                let taskData = {};
+                let contextData = {};
+
+                // Assign R, T, C based on stage
+                switch (stageId) {
+                    case 1: // Initiation
+                        roleData = {
+                            title: "The 'Persona' Layer",
+                            desc: "Filter information through a specific lens or expertise. Generic roles like 'tutor' are often insufficient.",
+                            templates: [
+                                { label: "The Futurist", text: "Act as a futurist predicting the trajectory of [Topic] over the next 50 years. What are the emerging wildcards?" },
+                                { label: "The Historian", text: "Act as a historian. How has the scholarly understanding of [Concept] shifted over the last century?" },
+                                { label: "The Connector", text: "Act as an interdisciplinary bridge between [Field A] and [Field B]. Where do their interests in [Topic] overlap?" },
+                                { label: "Global Observer", text: "Act as a geopolitical analyst. How does [Topic] manifest differently in the Global South vs. the Global North?" }
+                            ]
+                        };
+                        taskData = {
+                            title: "The 'Unblocking' Layer",
+                            desc: "Use the AI to decode complexity. Ask it to dismantle the concept you are stuck on.",
+                            templates: [
+                                { label: "Mind Mapper", text: "List 10 distinct sub-topics related to [Topic] ranging from obvious to obscure." },
+                                { label: "Controversy Scanner", text: "Identify 5 major academic debates or controversies currently active in [Field]." },
+                                { label: "Gap Spotter", text: "What are 3 questions about [Topic] that researchers still haven't fully answered?" },
+                                { label: "Variable Finder", text: "List the 5 most significant variables that influence [Topic] in a real-world setting." }
+                            ]
+                        };
+                        contextData = {
+                            title: "The 'Calibration' Layer",
+                            desc: "Define boundary conditions. Force the AI to specific academic standards.",
+                            templates: [
+                                { label: "Undergrad Level", text: "Assume I am a 1st-year student looking for a manageable paper topic." },
+                                { label: "Local Context", text: "Focus on how this topic applies specifically to the context of [Region/Country]." },
+                                { label: "Interdisciplinary", text: "Frame this topic for an audience consisting of both [Scientists] and [Sociologists]." }
+                            ]
+                        };
+                        break;
+
+                    case 2: // Selection
+                        roleData = {
+                            title: "The 'Persona' Layer",
+                            desc: "Filter information through a specific lens or expertise. Generic roles like 'tutor' are often insufficient.",
+                            templates: [
+                                { label: "Feasibility Analyst", text: "Act as a project manager assessing the scope of a research paper." },
+                                { label: "The Critic", text: "Act as a skeptical professor who wants to ensure my topic isn't too broad or too narrow." },
+                                { label: "Data Auditor", text: "Act as a data specialist. Evaluate which of these topics has more accessible public datasets." }
+                            ]
+                        };
+                        taskData = {
+                            title: "The 'Unblocking' Layer",
+                            desc: "Use the AI to decode complexity. Ask it to dismantle the concept you are stuck on.",
+                            templates: [
+                                { label: "Compare Complexity", text: "Compare Topic A and Topic B based on the difficulty of finding primary sources." },
+                                { label: "Scope Check", text: "Is [Topic] too broad for a 2000-word paper? If so, suggest 3 narrower versions." },
+                                { label: "Relevance Check", text: "Which of these research questions is more relevant to current events in [Year]?" }
+                            ]
+                        };
+                        contextData = {
+                            title: "The 'Calibration' Layer",
+                            desc: "Define boundary conditions. Force the AI to specific academic standards.",
+                            templates: [
+                                { label: "Time Constraint", text: "I only have 4 weeks to complete this assignment." },
+                                { label: "Resource Constraint", text: "I only have access to standard university databases, not specialized physical archives." },
+                                { label: "Word Count", text: "This needs to be feasible for a [Word Count] assignment." }
+                            ]
+                        };
+                        break;
+
+                    case 3: // Exploration
+                        roleData = {
+                            title: "The 'Persona' Layer",
+                            desc: "Filter information through a specific lens or expertise. Generic roles like 'tutor' are often insufficient.",
+                            templates: [
+                                { label: "The Patient Tutor", text: "Act as a patient tutor who is excellent at simplifying complex ideas without losing nuance." },
+                                { label: "Analogy Generator", text: "Act as a creative writer who uses metaphors from [Everyday Life/Nature] to explain technical concepts." },
+                                { label: "Visual Thinker", text: "Act as a graphic designer describing a flowchart to explain this process." }
+                            ]
+                        };
+                        taskData = {
+                            title: "The 'Unblocking' Layer",
+                            desc: "Use the AI to decode complexity. Ask it to dismantle the concept you are stuck on.",
+                            templates: [
+                                { label: "Explain Like I'm 5", text: "Explain [Concept] to me as if I were a high school student, then progressively add academic depth." },
+                                { label: "Component Breaker", text: "Break this theory down into its 3 core axioms or first principles." },
+                                { label: "Relationship Mapper", text: "How does [Concept A] relate to [Concept B]? Are they causal, correlated, or contradictory?" },
+                                { label: "Timeline Builder", text: "Create a chronological timeline of the key events that led to [Current Situation]." }
+                            ]
+                        };
+                        contextData = {
+                            title: "The 'Calibration' Layer",
+                            desc: "Define boundary conditions. Force the AI to specific academic standards.",
+                            templates: [
+                                { label: "Knowledge Gap", text: "I understand the basics of [Topic], but I am stuck on [Specific Part]. Focus only on that." },
+                                { label: "Language Support", text: "English is not my first language. Explain this utilizing clear, simple syntax." },
+                                { label: "Application Focus", text: "I understand the theory. Focus on how this applies to [Real World Example]." }
+                            ]
+                        };
+                        break;
+
+                    case 4: // Formulation
+                        roleData = {
+                            title: "The 'Persona' Layer",
+                            desc: "Filter information through a specific lens or expertise. Generic roles like 'tutor' are often insufficient.",
+                            templates: [
+                                { label: "The Socratic Professor", text: "Act as a strict professor who uses the Socratic method to test arguments." },
+                                { label: "Methodological Skeptic", text: "Act as a peer reviewer looking for sampling bias, logical gaps, or confounding variables." },
+                                { label: "The Stakeholder", text: "Act as a cynical [Stakeholder e.g. Investor/ policymaker]. Attack the practical viability of my argument." },
+                                { label: "The Interdisciplinarian", text: "Act as an expert in [Adjacent Field]. How would you critique my argument from that perspective?" }
+                            ]
+                        };
+                        taskData = {
+                            title: "The 'Unblocking' Layer",
+                            desc: "Use the AI to decode complexity. Ask it to dismantle the concept you are stuck on.",
+                            templates: [
+                                { label: "Logic Check", text: "Review my thesis statement. Tell me where the logic is weak or circular." },
+                                { label: "Counter-Argument", text: "What is the strongest academic argument against my position? How would a critic refute me?" },
+                                { label: "Blind Spot", text: "What perspective or variable am I ignoring in this argument?" },
+                                { label: "Stress Test", text: "Apply my theory to [Extreme Case/Scenario]. Does it hold up?" }
+                            ]
+                        };
+                        contextData = {
+                            title: "The 'Calibration' Layer",
+                            desc: "Define boundary conditions. Force the AI to specific academic standards.",
+                            templates: [
+                                { label: "Academic Defense", text: "Assume I am defending this in a university seminar. Be rigorous." },
+                                { label: "Critical Lens", text: "Critique this argument specifically through the lens of [Specific Theory/Scholar]." },
+                                { label: "Publication Standard", text: "Assume this is being submitted to a journal in [Field]. Is the tone appropriate?" }
+                            ]
+                        };
+                        break;
+
+                    case 5: // Collection
+                        roleData = {
+                            title: "The 'Persona' Layer",
+                            desc: "Filter information through a specific lens or expertise. Generic roles like 'tutor' are often insufficient.",
+                            templates: [
+                                { label: "Reference Librarian", text: "Act as an expert university reference librarian familiar with academic databases." },
+                                { label: "Boolean Architect", text: "Act as a data specialist skilled in constructing complex search queries." },
+                            ]
+                        };
+                        taskData = {
+                            title: "The 'Unblocking' Layer",
+                            desc: "Use the AI to decode complexity. Ask it to dismantle the concept you are stuck on.",
+                            templates: [
+                                { label: "Keyword Generator", text: "List 20 relevant keywords, synonyms, and related terms for [Topic] to use in a database." },
+                                { label: "String Builder", text: "Create 5 advanced Boolean search strings using AND/OR/NOT operators." },
+                                { label: "Source Types", text: "What types of primary sources (e.g., census data, diaries, treaties) exist for this topic?" },
+                                { label: "Database Matcher", text: "Which specific academic databases (e.g. PubMed, IEEE, JSTOR) are best suited for this topic?" }
+                            ]
+                        };
+                        contextData = {
+                            title: "The 'Calibration' Layer",
+                            desc: "Define boundary conditions. Force the AI to specific academic standards.",
+                            templates: [
+                                { label: "Database Specific", text: "Format the search strings specifically for [JSTOR / Web of Science / Scopus]." },
+                                { label: "Scholarly Focus", text: "Focus strictly on peer-reviewed academic sources, not popular media." },
+                                { label: "Date Range", text: "Focus on terminology used in the literature from [Year] to [Year]." }
+                            ]
+                        };
+                        break;
+
+                    case 6: // Presentation
+                        roleData = {
+                            title: "The 'Persona' Layer",
+                            desc: "Filter information through a specific lens or expertise. Generic roles like 'tutor' are often insufficient.",
+                            templates: [
+                                { label: "Copy Editor", text: "Act as a professional academic copy editor." },
+                                { label: "Style Guide Expert", text: "Act as an expert in [APA/MLA/Chicago] citation style guidelines." },
+                                { label: "Audience Persona", text: "Act as a [Target Audience Member]. Tell me which parts of this text are confusing." }
+                            ]
+                        };
+                        taskData = {
+                            title: "The 'Unblocking' Layer",
+                            desc: "Use the AI to decode complexity. Ask it to dismantle the concept you are stuck on.",
+                            templates: [
+                                { label: "Clarity Check", text: "Highlight sentences in my text that are 'hedging', passive, or overly wordy." },
+                                { label: "Flow Analysis", text: "Does the transition between Paragraph 1 and 2 follow a logical progression?" },
+                                { label: "Citation Fixer", text: "Check this bibliography entry for formatting errors according to the style guide." },
+                                { label: "Tone Polish", text: "Identify any colloquial language that undermines the academic tone." }
+                            ]
+                        };
+                        contextData = {
+                            title: "The 'Calibration' Layer",
+                            desc: "Define boundary conditions. Force the AI to specific academic standards.",
+                            templates: [
+                                { label: "Final Submission", text: "This is a final submission for a university course. It must be formal." },
+                                { label: "Oral Script", text: "This is for a spoken presentation. Highlight words that might be difficult to say out loud." },
+                                { label: "Poster Presentation", text: "This text is for a visual poster. It needs to be punchy and concise." }
+                            ]
+                        };
+                        break;
+
+                    default:
+                        roleData = { title: "", desc: "", templates: [] };
+                        taskData = { title: "", desc: "", templates: [] };
+                        contextData = { title: "", desc: "", templates: [] };
+                }
+
+                // Determine Constraint based on stage
+                let constraintData = {};
+                if (stageId === 5) { // Collection
+                    constraintData = collectionConstraints;
+                } else if (stageId === 6) { // Presentation
+                    constraintData = presentationConstraints;
+                } else {
+                    constraintData = standardConstraints;
+                }
+
+                return {
+                    role: roleData,
+                    task: taskData,
+                    context: contextData,
+                    constraint: constraintData
+                };
+            };
+
+            // 3. Call the function
+            const currentRtcc = getRtccData(stages[activeStage].id);
+            const currentData = stages[activeStage];
+
+            const copyToClipboard = () => {
+                // Copy only what the user has typed
+                const role = promptInputs.role;
+                const task = promptInputs.task;
+                const context = promptInputs.context;
+                const constraint = promptInputs.constraint;
+
+                // Only build text if there is content to copy
+                const text = [role, task, context, constraint].filter(Boolean).join(' ');
+
+                if (!text) {
+                    alert("Please fill in at least one field to copy.");
+                    return;
+                }
+
+                const textArea = document.createElement("textarea");
+                textArea.value = text;
+                document.body.appendChild(textArea);
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    alert("Prompt copied to clipboard!");
+                } catch (err) {
+                    console.error('Unable to copy', err);
+                    alert("Failed to copy. Please copy manually.");
+                }
+                document.body.removeChild(textArea);
+            };
+
+            const toggleSection = (section) => {
+                setExpandedSection(expandedSection === section ? null : section);
+            };
+
+            const applyTemplate = (field, text) => {
+                setPromptInputs(prev => ({ ...prev, [field]: text }));
+            };
+
+            const isPromptEmpty = !promptInputs.role && !promptInputs.task && !promptInputs.context && !promptInputs.constraint;
+
+            return (
+                <div className="min-h-screen pb-20">
+                    {/* Header */}
+                    {/* Header */}
+                    <header className={`glass-header z-50 transition-all duration-300 ${isSticky ? 'sticky top-0' : 'relative'}`}>
+                        <div className="max-w-7xl mx-auto px-6 py-4 relative">
+                            {isSticky && (
+                                <button
+                                    onClick={() => setIsSticky(false)}
+                                    className="absolute top-4 right-6 text-slate-400 hover:text-slate-600 transition-colors p-1"
+                                    aria-label="Unpin header"
+                                    title="Unpin header"
+                                >
+                                    <i className="fa-solid fa-xmark text-lg"></i>
+                                </button>
+                            )}
+                            <div className="flex items-start gap-4 pr-8">
+                                <div className="w-12 h-12 rounded-xl bg-blue-900 text-white flex items-center justify-center shadow-lg shadow-blue-900/20 flex-shrink-0 mt-1">
+                                    <i className="fa-solid fa-anchor text-xl"></i>
+                                </div>
+                                <div>
+                                    <h1 className="text-xl font-bold text-slate-900 leading-tight mb-2">
+                                        NTU Library's Prompt Engineering for Guided Inquiry
+                                    </h1>
+                                    <p className="text-xs text-slate-500 font-medium leading-relaxed max-w-3xl">
+                                        Based on the NTU Library Digital Literacy Framework - DC4 AI Literacy, the "Role, Task, Context, Constraint" framework (RTCC), & Kuhlthau's Information Search Process (ISP) Model. Navigate the process and emotions of research
+                                        using <strong>Pedagogical Prompting Engineering</strong>.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </header>
+
+                    <main className="max-w-7xl mx-auto px-6 py-8 grid gap-8">
+
+                        {/* Philosophy Card */}
+                        <section className="glass-panel p-8 rounded-2xl shadow-glass">
+                            <div className="mb-6">
+                                <h2 className="font-bold text-xl text-slate-900">Information Search Process</h2>
+                                <p className="text-slate-500 text-sm mt-1">Select your current research stage to calibrate your AI assistant.</p>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {stages.map((stage, index) => (
+                                    <button
+                                        key={stage.id}
+                                        onClick={() => {
+                                            setActiveStage(index);
+                                            setPromptInputs({ role: "", task: "", context: "", constraint: "" });
+                                            setExpandedSection(null);
+                                        }}
+                                        className={`group relative p-5 rounded-xl border text-left transition-all duration-300 h-full flex flex-col hover:-translate-y-1 hover:shadow-lg ${activeStage === index
+                                            ? `bg-white border-blue-500/30 ring-4 ring-blue-500/5 shadow-xl`
+                                            : "bg-white/50 border-white/60 hover:bg-white hover:border-slate-200"
+                                            }`}
+                                    >
+                                        <div className="flex items-start gap-4 mb-3">
+                                            <div className={`w-12 h-12 rounded-lg flex items-center justify-center text-xl shadow-sm transition-colors ${activeStage === index ? stage.color : "bg-slate-100 text-slate-400 group-hover:bg-white group-hover:text-slate-600"
+                                                }`}>
+                                                {stage.icon === "fa-lightbulb" && <i className="fa-solid fa-lightbulb"></i>}
+                                                {stage.icon === "fa-compass" && <i className="fa-regular fa-compass"></i>}
+                                                {stage.icon === "fa-triangle-exclamation" && <i className="fa-solid fa-triangle-exclamation"></i>}
+                                                {stage.icon === "fa-brain" && <i className="fa-solid fa-brain"></i>}
+                                                {stage.icon === "fa-magnifying-glass" && <i className="fa-solid fa-magnifying-glass"></i>}
+                                                {stage.icon === "fa-check-circle" && <i className="fa-solid fa-check-circle"></i>}
+                                            </div>
+                                            <div className="flex flex-col pt-1">
+                                                <span className={`text-[10px] font-bold uppercase tracking-wider mb-0.5 ${activeStage === index ? "text-blue-600" : "text-slate-400"}`}>Step {stage.id}</span>
+                                                <span className={`font-bold text-lg leading-tight ${activeStage === index ? "text-slate-900" : "text-slate-600"}`}>{stage.name}</span>
+                                            </div>
+                                        </div>
+                                        <div className="text-xs font-medium text-slate-500 mt-auto pt-3 border-t border-slate-100/50">
+                                            {stage.feelingKey}
+                                        </div>
+
+                                        {activeStage === index && (
+                                            <div className="absolute inset-0 border-2 border-blue-500/10 rounded-xl pointer-events-none"></div>
+                                        )}
+                                    </button>
+                                ))}
+                            </div>
+                        </section>
+
+                        {/* Main Stage Content */}
+                        <section className="grid lg:grid-cols-12 gap-8 items-start">
+
+                            {/* Left Col: The Situation */}
+                            <div className="lg:col-span-5 space-y-6 sticky top-24">
+                                <div className="glass-panel p-8 rounded-2xl shadow-glass relative overflow-hidden">
+                                    <div className={`absolute top-0 left-0 w-1 h-full ${currentData.color.split(' ')[0].replace('bg-', 'bg-')}`}></div>
+
+                                    <div className="uppercase tracking-wide text-xs font-bold text-slate-400 mb-2">
+                                        Current Phase Analysis
+                                    </div>
+                                    <h2 className="text-3xl font-bold text-slate-900 mb-4">{currentData.name}</h2>
+
+                                    <div className="flex flex-wrap gap-2 mb-6">
+                                        <span className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide ${currentData.color}`}>
+                                            {currentData.emotion}
+                                        </span>
+                                    </div>
+
+                                    <div className="space-y-4">
+                                        <div>
+                                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Goal</h4>
+                                            <p className="text-slate-700 font-medium">
+                                                {currentData.goal}
+                                            </p>
+                                        </div>
+
+                                        <div className="bg-slate-50/80 p-5 rounded-xl border border-slate-100">
+                                            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-2">
+                                                <i className="fa-solid fa-lightbulb text-amber-400"></i> Librarian's Advice
+                                            </h4>
+                                            <p className="text-slate-700 text-sm leading-relaxed">
+                                                {currentData.advice}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="glass-panel p-6 rounded-2xl shadow-glass">
+                                    <h3 className="font-bold text-lg mb-3 flex items-center gap-2 text-slate-800">
+                                        <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center text-sm">
+                                            <i className="fa-solid fa-brain"></i>
+                                        </div>
+                                        Prompt Mode: <span className="text-blue-700">{currentData.promptMode}</span>
+                                    </h3>
+                                    <p className="text-slate-600 text-sm mb-4 leading-relaxed">
+                                        At this stage, you should frame your AI interactions to achieve specific cognitive goals without replacing your own thinking.
+                                    </p>
+
+                                    {currentData.id === 3 && (
+                                        <div className="p-4 bg-rose-50 border border-rose-100 rounded-xl text-rose-900 text-sm flex gap-3">
+                                            <div className="flex-shrink-0 mt-0.5"><i className="fa-solid fa-triangle-exclamation"></i></div>
+                                            <div>
+                                                <strong className="block mb-1">The Dip Alert</strong>
+                                                This is the stage where most students accidentally commit misconduct out of frustration. Use AI to *explain* concepts, not to write your assignments.
+                                            </div>
+                                        </div>
+                                    )}
+                                    {currentData.id === 5 && (
+                                        <div className="p-4 bg-violet-50 border border-violet-100 rounded-xl text-violet-900 text-sm flex gap-3">
+                                            <div className="flex-shrink-0 mt-0.5"><i className="fa-solid fa-magnifying-glass"></i></div>
+                                            <div>
+                                                <strong className="block mb-1">Triangulation Alert</strong>
+                                                Take the keywords AI gives you and plug them into the Library Database (JSTOR, Scopus). Verify everything.
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Right Col: The RTCC Builder */}
+                            <div className="lg:col-span-7 glass-panel p-1 rounded-2xl shadow-glass">
+                                <div className="bg-white rounded-xl p-6 md:p-8 shadow-sm border border-slate-100">
+                                    <div className="mb-8 border-b border-slate-100 pb-6">
+                                        <h3 className="font-bold text-xl flex items-center gap-3 text-slate-900">
+                                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 text-white flex items-center justify-center shadow-lg shadow-blue-500/20 text-sm">
+                                                <i className="fa-solid fa-pen-nib"></i>
+                                            </div>
+                                            Pedagogical Prompt Builder
+                                        </h3>
+                                        <p className="text-sm text-slate-500 mt-2 ml-13 leading-relaxed">
+                                            Use the <strong>Role, Task, Context, Constraint</strong> framework to transform AI from a text generator into a cognitive scaffold.
+                                        </p>
+                                        <p className="text-xs text-slate-400 mt-3 ml-13 font-medium flex items-center gap-2 opacity-80">
+                                            <i className="fa-solid fa-info-circle text-blue-400"></i>
+                                            <span>These are examples, not an exhaustive list.</span>
+                                        </p>
+                                    </div>
+
+                                    <div className="space-y-8">
+
+                                        {/* ROLE FIELD */}
+                                        <div className="group">
+                                            <div className="flex justify-between items-center mb-3">
+                                                <label className="flex items-center gap-2 text-xs font-bold uppercase text-slate-400 tracking-wider">
+                                                    <span className="w-5 h-5 rounded bg-blue-100 text-blue-600 flex items-center justify-center text-[10px]">R</span>
+                                                    Role (Who is the AI?)
+                                                </label>
+                                                <button
+                                                    onClick={() => toggleSection('role')}
+                                                    className="text-xs font-medium text-blue-600 flex items-center gap-1.5 hover:text-blue-700 transition-colors px-3 py-1 rounded-full hover:bg-blue-50"
+                                                >
+                                                    <i className="fa-solid fa-wand-magic-sparkles"></i>
+                                                    {currentRtcc.role.title || "Advanced Roles"}
+                                                    {expandedSection === 'role' ? <i className="fa-solid fa-chevron-up text-[10px]"></i> : <i className="fa-solid fa-chevron-down text-[10px]"></i>}
+                                                </button>
+                                            </div>
+
+                                            {expandedSection === 'role' && (
+                                                <div className="mb-4 bg-slate-50 p-4 rounded-xl border border-slate-100 text-sm animation-fade-in relative">
+                                                    <div className="absolute -top-2 right-8 w-4 h-4 bg-slate-50 border-t border-l border-slate-100 transform rotate-45"></div>
+                                                    <p className="font-semibold text-slate-800 mb-1">{currentRtcc.role.title}</p>
+                                                    <p className="text-slate-500 mb-3 text-xs">{currentRtcc.role.desc}</p>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {currentRtcc.role.templates.map((t, i) => (
+                                                            <button
+                                                                key={i}
+                                                                onClick={() => applyTemplate('role', t.text)}
+                                                                className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-600 hover:border-blue-300 hover:text-blue-600 hover:shadow-sm transition-all text-left"
+                                                            >
+                                                                {t.label}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            <textarea
+                                                className="w-full p-4 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:outline-none text-sm placeholder:text-slate-400 transition-all resize-none shadow-inner"
+                                                placeholder={currentData.template.role}
+                                                value={promptInputs.role}
+                                                onChange={(e) => setPromptInputs({ ...promptInputs, role: e.target.value })}
+                                                rows={2}
+                                            />
+                                        </div>
+
+                                        {/* TASK FIELD */}
+                                        <div className="group">
+                                            <div className="flex justify-between items-center mb-3">
+                                                <label className="flex items-center gap-2 text-xs font-bold uppercase text-slate-400 tracking-wider">
+                                                    <span className="w-5 h-5 rounded bg-emerald-100 text-emerald-600 flex items-center justify-center text-[10px]">T</span>
+                                                    Task (What needs doing?)
+                                                </label>
+                                                <button
+                                                    onClick={() => toggleSection('task')}
+                                                    className="text-xs font-medium text-blue-600 flex items-center gap-1.5 hover:text-blue-700 transition-colors px-3 py-1 rounded-full hover:bg-blue-50"
+                                                >
+                                                    <i className="fa-solid fa-list-check"></i>
+                                                    {currentRtcc.task.title || "Unblocking Tasks"}
+                                                    {expandedSection === 'task' ? <i className="fa-solid fa-chevron-up text-[10px]"></i> : <i className="fa-solid fa-chevron-down text-[10px]"></i>}
+                                                </button>
+                                            </div>
+
+                                            {expandedSection === 'task' && (
+                                                <div className="mb-4 bg-slate-50 p-4 rounded-xl border border-slate-100 text-sm animation-fade-in relative">
+                                                    <div className="absolute -top-2 right-8 w-4 h-4 bg-slate-50 border-t border-l border-slate-100 transform rotate-45"></div>
+                                                    <p className="font-semibold text-slate-800 mb-1">{currentRtcc.task.title}</p>
+                                                    <p className="text-slate-500 mb-3 text-xs">{currentRtcc.task.desc}</p>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {currentRtcc.task.templates.map((t, i) => (
+                                                            <button
+                                                                key={i}
+                                                                onClick={() => applyTemplate('task', t.text)}
+                                                                className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-600 hover:border-emerald-300 hover:text-emerald-600 hover:shadow-sm transition-all text-left"
+                                                            >
+                                                                {t.label}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            <textarea
+                                                className="w-full p-4 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 focus:outline-none text-sm placeholder:text-slate-400 transition-all resize-none shadow-inner"
+                                                placeholder={currentData.template.task}
+                                                value={promptInputs.task}
+                                                onChange={(e) => setPromptInputs({ ...promptInputs, task: e.target.value })}
+                                                rows={3}
+                                            />
+                                        </div>
+
+                                        {/* CONTEXT FIELD */}
+                                        <div className="group">
+                                            <div className="flex justify-between items-center mb-3">
+                                                <label className="flex items-center gap-2 text-xs font-bold uppercase text-slate-400 tracking-wider">
+                                                    <span className="w-5 h-5 rounded bg-purple-100 text-purple-600 flex items-center justify-center text-[10px]">C</span>
+                                                    Context (The Parameters)
+                                                </label>
+                                                <button
+                                                    onClick={() => toggleSection('context')}
+                                                    className="text-xs font-medium text-blue-600 flex items-center gap-1.5 hover:text-blue-700 transition-colors px-3 py-1 rounded-full hover:bg-blue-50"
+                                                >
+                                                    <i className="fa-solid fa-sliders"></i>
+                                                    {currentRtcc.context.title || "Context Triggers"}
+                                                    {expandedSection === 'context' ? <i className="fa-solid fa-chevron-up text-[10px]"></i> : <i className="fa-solid fa-chevron-down text-[10px]"></i>}
+                                                </button>
+                                            </div>
+
+                                            {expandedSection === 'context' && (
+                                                <div className="mb-4 bg-slate-50 p-4 rounded-xl border border-slate-100 text-sm animation-fade-in relative">
+                                                    <div className="absolute -top-2 right-8 w-4 h-4 bg-slate-50 border-t border-l border-slate-100 transform rotate-45"></div>
+                                                    <p className="font-semibold text-slate-800 mb-1">{currentRtcc.context.title}</p>
+                                                    <p className="text-slate-500 mb-3 text-xs">{currentRtcc.context.desc}</p>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {currentRtcc.context.templates.map((t, i) => (
+                                                            <button
+                                                                key={i}
+                                                                onClick={() => applyTemplate('context', t.text)}
+                                                                className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-600 hover:border-purple-300 hover:text-purple-600 hover:shadow-sm transition-all text-left"
+                                                            >
+                                                                {t.label}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            <textarea
+                                                className="w-full p-4 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 focus:outline-none text-sm placeholder:text-slate-400 transition-all resize-none shadow-inner"
+                                                placeholder={currentData.template.context}
+                                                value={promptInputs.context}
+                                                onChange={(e) => setPromptInputs({ ...promptInputs, context: e.target.value })}
+                                                rows={2}
+                                            />
+                                        </div>
+
+                                        {/* CONSTRAINT FIELD */}
+                                        <div className="group">
+                                            <div className="flex justify-between items-center mb-3">
+                                                <label className="flex items-center gap-2 text-xs font-bold uppercase text-red-500 tracking-wider">
+                                                    <span className="w-5 h-5 rounded bg-red-100 text-red-600 flex items-center justify-center text-[10px]">C</span>
+                                                    Constraint (The Pedagogy Layer)
+                                                </label>
+                                                <button
+                                                    onClick={() => toggleSection('constraint')}
+                                                    className="text-xs font-medium text-red-600 flex items-center gap-1.5 hover:text-red-700 transition-colors px-3 py-1 rounded-full hover:bg-red-50"
+                                                >
+                                                    <i className="fa-solid fa-shield-halved"></i>
+                                                    Pedagogical Guardrails
+                                                    {expandedSection === 'constraint' ? <i className="fa-solid fa-chevron-up text-[10px]"></i> : <i className="fa-solid fa-chevron-down text-[10px]"></i>}
+                                                </button>
+                                            </div>
+
+                                            {expandedSection === 'constraint' && (
+                                                <div className="mb-4 bg-red-50 p-4 rounded-xl border border-red-100 text-sm animation-fade-in relative">
+                                                    <div className="absolute -top-2 right-8 w-4 h-4 bg-red-50 border-t border-l border-red-100 transform rotate-45"></div>
+                                                    <p className="font-semibold text-red-900 mb-1">{currentRtcc.constraint.title}</p>
+                                                    <p className="text-red-700/80 mb-3 text-xs">{currentRtcc.constraint.desc}</p>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {currentRtcc.constraint.templates.map((t, i) => (
+                                                            <button
+                                                                key={i}
+                                                                onClick={() => applyTemplate('constraint', t.text)}
+                                                                className="px-3 py-1.5 bg-white border border-red-200 rounded-lg text-xs font-medium text-red-700 hover:bg-red-50 hover:shadow-sm transition-all text-left"
+                                                            >
+                                                                {t.label}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            <textarea
+                                                className="w-full p-4 rounded-xl bg-red-50/50 border border-red-100 focus:bg-white focus:ring-2 focus:ring-red-500/20 focus:border-red-500 focus:outline-none text-sm placeholder:text-red-300 transition-all resize-none shadow-inner"
+                                                placeholder={currentData.template.constraint}
+                                                value={promptInputs.constraint}
+                                                onChange={(e) => setPromptInputs({ ...promptInputs, constraint: e.target.value })}
+                                                rows={3}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-8 pt-8 border-t border-slate-100">
+                                        <h4 className="text-xs font-bold uppercase text-slate-400 mb-3 tracking-wider">Prompt Preview</h4>
+                                        <div className="bg-slate-50 border border-slate-200 text-slate-700 p-6 rounded-xl font-mono text-sm mb-4 shadow-inner leading-relaxed min-h-[80px] whitespace-pre-wrap">
+                                            {isPromptEmpty ? (
+                                                <span className="text-slate-400 italic select-none">Start typing above to build your prompt...</span>
+                                            ) : (
+                                                <>
+                                                    {promptInputs.role && <span className="bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded mx-0.5 decoration-clone">{promptInputs.role}</span>}
+                                                    {promptInputs.task && <span className="bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded mx-0.5 decoration-clone">{promptInputs.task}</span>}
+                                                    {promptInputs.context && <span className="bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded mx-0.5 decoration-clone">{promptInputs.context}</span>}
+                                                    {promptInputs.constraint && <span className="bg-red-100 text-red-800 font-medium px-1.5 py-0.5 rounded mx-0.5 decoration-clone border-b-2 border-red-200">{promptInputs.constraint}</span>}
+                                                </>
+                                            )}
+                                        </div>
+                                        <button
+                                            onClick={copyToClipboard}
+                                            className={`w-full py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all duration-200 shadow-lg ${isPromptEmpty ? 'bg-slate-100 text-slate-400 cursor-not-allowed shadow-none' : 'bg-slate-900 hover:bg-blue-600 text-white hover:shadow-blue-500/30 hover:-translate-y-0.5'}`}
+                                            disabled={isPromptEmpty}
+                                        >
+                                            <i className="fa-regular fa-copy"></i>
+                                            Copy Prompt to Clipboard
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </section>
+
+                        <section className="glass-panel p-8 rounded-2xl shadow-glass mt-8">
+                            <h2 className="font-bold text-xl mb-8 flex items-center gap-3 text-slate-900">
+                                <div className="w-10 h-10 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center">
+                                    <i className="fa-solid fa-book-open"></i>
+                                </div>
+                                Student Guide: Deepening Your Prompt Engineering Practice
+                            </h2>
+
+                            <div className="grid md:grid-cols-2 gap-12">
+                                <div>
+                                    <h3 className="font-bold text-lg mb-4 text-slate-800">1. The "Black Box" Trap</h3>
+                                    <p className="text-slate-600 text-sm leading-relaxed mb-6">
+                                        Many students treat AI as a magical "Black Box": they input a vague request ("Write an essay on climate change") and accept whatever output comes out. This fails because:
+                                    </p>
+                                    <ul className="space-y-3 mb-8">
+                                        <li className="flex items-start gap-3 text-sm text-slate-600">
+                                            <i className="fa-solid fa-xmark text-red-400 mt-1"></i>
+                                            <span><strong>It creates generic work:</strong> Without specific <em>Context</em>, the AI aims for the "average" of the internet.</span>
+                                        </li>
+                                        <li className="flex items-start gap-3 text-sm text-slate-600">
+                                            <i className="fa-solid fa-xmark text-red-400 mt-1"></i>
+                                            <span><strong>It bypasses thinking:</strong> Without a <em>Constraint</em>, the AI does the analysis for you.</span>
+                                        </li>
+                                        <li className="flex items-start gap-3 text-sm text-slate-600">
+                                            <i className="fa-solid fa-xmark text-red-400 mt-1"></i>
+                                            <span><strong>It hallucinates:</strong> Without a specific <em>Role</em>, the AI prioritizes sounding plausible over being accurate.</span>
+                                        </li>
+                                    </ul>
+
+                                    <h3 className="font-bold text-lg mb-4 text-slate-800">2. The "20% Rule" of Iteration</h3>
+                                    <div className="p-5 bg-blue-50 rounded-xl border border-blue-100">
+                                        <div className="flex items-start gap-4">
+                                            <div className="mt-1 text-blue-600 flex-shrink-0 text-xl"><i className="fa-solid fa-arrows-rotate"></i></div>
+                                            <div>
+                                                <p className="text-sm text-slate-800 font-medium mb-2">
+                                                    Your first prompt is rarely perfect.
+                                                </p>
+                                                <p className="text-sm text-slate-600 mb-3">
+                                                    Expect to spend 20% of your time refining the conversation.
+                                                </p>
+                                                <div className="space-y-1">
+                                                    <p className="text-xs text-slate-500 italic bg-white/50 p-2 rounded">"That's too broad. Focus specifically on the economic impact."</p>
+                                                    <p className="text-xs text-slate-500 italic bg-white/50 p-2 rounded">"You missed the counter-argument. Try again."</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <h3 className="font-bold text-lg mb-6 text-slate-800">3. The RTCC Master Key</h3>
+                                    <div className="space-y-4">
+                                        <div className="flex gap-4 p-4 rounded-xl bg-white border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+                                            <div className="w-12 h-12 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-lg flex-shrink-0">R</div>
+                                            <div>
+                                                <h4 className="font-bold text-sm text-slate-900">Role (The Lens)</h4>
+                                                <p className="text-xs text-slate-500 mt-1">Changes <em>how</em> the AI analyzes information. A "Historian" sees patterns over time; a "Skeptic" looks for flaws.</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-4 p-4 rounded-xl bg-white border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+                                            <div className="w-12 h-12 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-lg flex-shrink-0">T</div>
+                                            <div>
+                                                <h4 className="font-bold text-sm text-slate-900">Task (The Mechanism)</h4>
+                                                <p className="text-xs text-slate-500 mt-1">Defines the <em>cognitive operation</em>. Do you need a summary, a comparison, an analogy, or a critique?</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-4 p-4 rounded-xl bg-white border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+                                            <div className="w-12 h-12 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-lg flex-shrink-0">C</div>
+                                            <div>
+                                                <h4 className="font-bold text-sm text-slate-900">Context (The Parameters)</h4>
+                                                <p className="text-xs text-slate-500 mt-1">Sets the <em>standard</em>. "Undergraduate level" signals a different depth than "High school level."</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-4 p-4 rounded-xl bg-white border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+                                            <div className="w-12 h-12 rounded-lg bg-red-100 text-red-700 flex items-center justify-center font-bold text-lg flex-shrink-0">C</div>
+                                            <div>
+                                                <h4 className="font-bold text-sm text-slate-900">Constraint (The Integrity)</h4>
+                                                <p className="text-xs text-slate-500 mt-1">Protects your <em>learning</em>. "Do not write the essay" ensures you get the blocks, not the woven cloth.</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+
+                        <footer className="text-center text-slate-400 text-sm mt-8 pb-6 space-y-6">
+                            <div className="max-w-3xl mx-auto">
+                                <p className="font-medium text-slate-500 leading-relaxed">Core Principle: No matter which AI you use or how advanced it becomes, using it to circumvent the struggle of making meaning is counterproductive. Use AI to scaffold your thinking, not to replace it. :)</p>
+                            </div>
+
+                            <div className="max-w-2xl mx-auto border-t border-slate-200/60 pt-6">
+                                <p className="font-bold text-slate-400 text-[10px] uppercase tracking-widest mb-2">DC4 AI Literacy</p>
+                                <p className="text-xs text-slate-400 italic">
+                                    "Develop, select, and apply artificial intelligence (AI) and related algorithmic tools and strategies to enhance efficiency and produce optimised outcomes or tasks."
+                                </p>
+                            </div>
+
+                            <div className="max-w-2xl mx-auto pt-2 text-[10px] text-slate-400">
+                                <h4 className="font-bold uppercase tracking-wider mb-3 text-center opacity-70">References</h4>
+                                <ul className="list-none space-y-1.5 flex flex-col items-center opacity-70 hover:opacity-100 transition-opacity">
+                                    <li>Google Gemini. (2025). Used as a collaborative tool for ideation, lesson planning, and code generation.</li>
+                                    <li>Kuhlthau, C. C., Caspari, A. K., & Maniotes, L. K. (2015). <em>Guided inquiry: Learning in the 21st century</em> (2nd ed.). Libraries Unlimited.</li>
+                                    <li>Nanyang Technological University. (n.d.). <em>Digital literacy framework: DC4 AI literacy</em>.</li>
+                                    <li>TaoPrompt. (2025). <em>Multi-layer prompt design: Emulating human expertise in AI – RTC-C framework (basis for RTCC model)</em>. Retrieved from https://blog.taoprompt.com/multi-layer-prompt-design-emulating-human-expertise-in-ai#heading-4-technical-deep-dive-rtc-c-template</li>
+                                </ul>
+                            </div>
+                        </footer>
+                    </main>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<ResearchNavigator />);
+    </script>
+</body>
+
+</html>
